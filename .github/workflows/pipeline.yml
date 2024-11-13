@@ -8,19 +8,19 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pytest flake8
         pip install -r requirements.txt
-    
+
     - name: Test with pytest
       run: |
         pytest
@@ -35,20 +35,21 @@ jobs:
           app.py \
           templates/
 
-    # Сохраняем архив как артефакт
+    # Сохраняем архив как артефакт (обновленная версия)
     - name: Upload deployment package
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: deploy-package
         path: deploy.tar.gz
+        retention-days: 1
 
   deploy:
     needs: test-and-build
     runs-on: ubuntu-latest
     steps:
-    # Скачиваем архив
+    # Скачиваем архив (обновленная версия)
     - name: Download deployment package
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: deploy-package
 

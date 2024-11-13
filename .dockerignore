@@ -5,3 +5,4 @@ __pycache__/
 .gitignore
 .env
 README.md
+k8s-key.pem

@@ -8,3 +8,4 @@ venv/
 # IDE
 .idea/
 .vscode/
+k8s-key.pem

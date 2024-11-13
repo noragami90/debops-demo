@@ -25,10 +25,34 @@ jobs:
       run: |
         pytest
 
+    # Создаем архив с файлами проекта
+    - name: Create deployment package
+      run: |
+        tar -czf deploy.tar.gz \
+          docker-compose.yml \
+          Dockerfile \
+          requirements.txt \
+          app.py \
+          templates/
+
+    # Сохраняем архив как артефакт
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v2
+      with:
+        name: deploy-package
+        path: deploy.tar.gz
+
   deploy:
     needs: test-and-build
     runs-on: ubuntu-latest
     steps:
+    # Скачиваем архив
+    - name: Download deployment package
+      uses: actions/download-artifact@v2
+      with:
+        name: deploy-package
+
+    # Копируем файлы на сервер и разворачиваем приложение
     - name: Deploy to VPS
       uses: appleboy/ssh-action@master
       with:
@@ -37,7 +61,7 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: 22
         script: |
-          # Установка необходимых пакетов (если их нет)
+          # Установка Docker и Docker Compose (если не установлены)
           if ! command -v docker &> /dev/null; then
             echo "Installing Docker..."
             sudo apt-get update
@@ -49,23 +73,32 @@ jobs:
             sudo apt-get install -y docker-compose
           fi
 
-          # Добавление пользователя в группу docker
-          sudo usermod -aG docker $USER
-
-          # Создание директории проекта
+          # Подготовка директории
           mkdir -p ~/devops-demo
           cd ~/devops-demo
 
-          # Загрузка файлов проекта (без использования git clone)
-          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/docker-compose.yml -O docker-compose.yml
-          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/Dockerfile -O Dockerfile
-          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/requirements.txt -O requirements.txt
-          
-          # Создание директории для приложения
-          mkdir -p app templates
-          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/app.py -O app/app.py
-          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/templates/index.html -O templates/index.html
+    # Копируем архив на сервер
+    - name: Copy deployment package
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        source: "deploy.tar.gz"
+        target: "~/devops-demo"
 
-          # Перезапуск контейнеров
+    # Распаковываем и запускаем
+    - name: Deploy application
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        script: |
+          cd ~/devops-demo
+          tar -xzf deploy.tar.gz
           sudo docker-compose down || true
-          sudo docker-compose up -d
+          sudo docker-compose up -d --build
+          rm deploy.tar.gz

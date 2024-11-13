@@ -25,7 +25,6 @@ jobs:
       run: |
         pytest
 
-    # Создаем архив с файлами проекта
     - name: Create deployment package
       run: |
         tar -czf deploy.tar.gz \
@@ -35,7 +34,6 @@ jobs:
           app.py \
           templates/
 
-    # Сохраняем архив как артефакт (обновленная версия)
     - name: Upload deployment package
       uses: actions/upload-artifact@v3
       with:
@@ -47,38 +45,11 @@ jobs:
     needs: test-and-build
     runs-on: ubuntu-latest
     steps:
-    # Скачиваем архив (обновленная версия)
     - name: Download deployment package
       uses: actions/download-artifact@v3
       with:
         name: deploy-package
 
-    # Копируем файлы на сервер и разворачиваем приложение
-    - name: Deploy to VPS
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USERNAME }}
-        key: ${{ secrets.VPS_SSH_KEY }}
-        port: 22
-        script: |
-          # Установка Docker и Docker Compose (если не установлены)
-          if ! command -v docker &> /dev/null; then
-            echo "Installing Docker..."
-            sudo apt-get update
-            sudo apt-get install -y docker.io
-          fi
-
-          if ! command -v docker-compose &> /dev/null; then
-            echo "Installing Docker Compose..."
-            sudo apt-get install -y docker-compose
-          fi
-
-          # Подготовка директории
-          mkdir -p ~/devops-demo
-          cd ~/devops-demo
-
-    # Копируем архив на сервер
     - name: Copy deployment package
       uses: appleboy/scp-action@master
       with:
@@ -89,8 +60,7 @@ jobs:
         source: "deploy.tar.gz"
         target: "~/devops-demo"
 
-    # Распаковываем и запускаем
-    - name: Deploy application
+    - name: Deploy and verify
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -100,6 +70,27 @@ jobs:
         script: |
           cd ~/devops-demo
           tar -xzf deploy.tar.gz
+          
+          echo "Stopping existing containers..."
           sudo docker-compose down || true
-          sudo docker-compose up -d --build
+          
+          echo "Building new image..."
+          sudo docker-compose build
+          
+          echo "Starting containers..."
+          sudo docker-compose up -d
+          
+          echo "Waiting for container to start..."
+          sleep 10
+          
+          echo "Checking container status..."
+          sudo docker ps
+          
+          echo "Checking container logs..."
+          sudo docker logs devops-demo_web_1
+          
+          echo "Testing application..."
+          curl http://localhost:5000
+          
+          echo "Cleanup..."
           rm deploy.tar.gz

@@ -3,9 +3,12 @@ version: '3.8'
 services:
   web:
     build: .
-    restart: always
+    restart: unless-stopped
     ports:
       - "5000:5000"
     volumes:
-      - ./app:/app
       - ./templates:/app/templates
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1

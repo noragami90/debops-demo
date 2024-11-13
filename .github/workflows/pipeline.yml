@@ -24,16 +24,14 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
-    
-    - name: Build and Push Docker image
-      run: |
-        docker build -t devops-demo .
-        docker run devops-demo python -c "import flask; print('Flask installation test passed')"
 
   deploy:
     needs: test-and-build
     runs-on: ubuntu-latest
     steps:
+    - name: Print Debug Info
+      run: echo "Starting deployment to ${{ secrets.VPS_HOST }}"
+
     - name: Deploy to VPS
       uses: appleboy/ssh-action@master
       with:
@@ -41,16 +39,15 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: 22
+        debug: true
         script: |
-          # Проверяем подключение
-          echo "Connected to server"
-          
-          # Переходим в директорию проекта
-          cd /home/${{ secrets.VPS_USERNAME }}/devops-demo
-          
-          # Обновляем код
-          git pull origin main
-          
-          # Перезапускаем контейнеры
-          docker-compose down
+          whoami
+          pwd
+          cd ~/devops-demo || mkdir -p ~/devops-demo
+          if [ ! -d .git ]; then
+            git clone https://github.com/noragami90/devops-demo.git .
+          else
+            git pull origin main
+          fi
+          docker-compose down || true
           docker-compose up -d

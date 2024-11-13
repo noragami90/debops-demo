@@ -3,10 +3,9 @@ version: '3.8'
 services:
   web:
     build: .
+    restart: always
     ports:
       - "5000:5000"
     volumes:
-      - .:/app
-    environment:
-      - FLASK_ENV=development
-    restart: unless-stopped
+      - ./app:/app
+      - ./templates:/app/templates

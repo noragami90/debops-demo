@@ -29,9 +29,6 @@ jobs:
     needs: test-and-build
     runs-on: ubuntu-latest
     steps:
-    - name: Print Debug Info
-      run: echo "Starting deployment to ${{ secrets.VPS_HOST }}"
-
     - name: Deploy to VPS
       uses: appleboy/ssh-action@master
       with:
@@ -39,15 +36,36 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: 22
-        debug: true
         script: |
-          whoami
-          pwd
-          cd ~/devops-demo || mkdir -p ~/devops-demo
-          if [ ! -d .git ]; then
-            git clone https://github.com/noragami90/devops-demo.git .
-          else
-            git pull origin main
+          # Установка необходимых пакетов (если их нет)
+          if ! command -v docker &> /dev/null; then
+            echo "Installing Docker..."
+            sudo apt-get update
+            sudo apt-get install -y docker.io
           fi
-          docker-compose down || true
-          docker-compose up -d
+
+          if ! command -v docker-compose &> /dev/null; then
+            echo "Installing Docker Compose..."
+            sudo apt-get install -y docker-compose
+          fi
+
+          # Добавление пользователя в группу docker
+          sudo usermod -aG docker $USER
+
+          # Создание директории проекта
+          mkdir -p ~/devops-demo
+          cd ~/devops-demo
+
+          # Загрузка файлов проекта (без использования git clone)
+          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/docker-compose.yml -O docker-compose.yml
+          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/Dockerfile -O Dockerfile
+          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/requirements.txt -O requirements.txt
+          
+          # Создание директории для приложения
+          mkdir -p app templates
+          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/app.py -O app/app.py
+          wget https://raw.githubusercontent.com/noragami90/devops-demo/main/templates/index.html -O templates/index.html
+
+          # Перезапуск контейнеров
+          sudo docker-compose down || true
+          sudo docker-compose up -d
